@@ -1,1 +1,100 @@
-hiiiiiii
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+#define SIZE 10
+
+// Global array to store the original unsorted data
+int global_array[SIZE] = {7, 12, 19, 3, 18, 4, 2, 6, 15, 8};
+// Global array to store the final sorted result
+int sorted_array[SIZE];
+
+// Structure to pass parameters to sorting threads (start and end indices)
+typedef struct {
+    int start;
+    int end;
+} parameters;
+
+// Bubble sort algorithm to sort a portion of the array
+void bubble_sort(int arr[], int start, int end) {
+    for (int i = start; i < end; i++) {
+        for (int j = start; j < end - (i - start) - 1; j++) {
+            if (arr[j] > arr[j + 1]) {
+                // Swap elements if they are in the wrong order
+                int temp = arr[j];
+                arr[j] = arr[j + 1];
+                arr[j + 1] = temp;
+            }
+        }
+    }
+}
+
+// Thread function to sort a portion of the global array
+void* sort_thread(void* param) {
+    parameters* params = (parameters*)param;
+    bubble_sort(global_array, params->start, params->end);
+    pthread_exit(NULL);
+}
+
+// Thread function to merge two sorted subarrays into the final sorted array
+void* merge_thread(void* param) {
+    int mid = SIZE / 2;
+    int i = 0;     // Index for first half
+    int j = mid;   // Index for second half
+    int k = 0;     // Index for merged array
+
+    // Merge the two sorted halves
+    while (i < mid && j < SIZE) {
+        if (global_array[i] <= global_array[j]) {
+            sorted_array[k++] = global_array[i++];
+        } else {
+            sorted_array[k++] = global_array[j++];
+        }
+    }
+
+    // Copy remaining elements from the first half (if any)
+    while (i < mid) {
+        sorted_array[k++] = global_array[i++];
+    }
+
+    // Copy remaining elements from the second half (if any)
+    while (j < SIZE) {
+        sorted_array[k++] = global_array[j++];
+    }
+
+    pthread_exit(NULL);
+}
+
+int main() {
+    pthread_t sort_thread1, sort_thread2, merge_thread1;
+    parameters params1, params2;
+
+    // Split the array into two halves:
+    // First half: [0, SIZE/2)
+    params1.start = 0;
+    params1.end = SIZE / 2;
+    // Second half: [SIZE/2, SIZE)
+    params2.start = SIZE / 2;
+    params2.end = SIZE;
+
+    // Create two sorting threads
+    pthread_create(&sort_thread1, NULL, sort_thread, &params1);
+    pthread_create(&sort_thread2, NULL, sort_thread, &params2);
+
+    // Wait for sorting threads to finish
+    pthread_join(sort_thread1, NULL);
+    pthread_join(sort_thread2, NULL);
+
+    // Create and wait for the merge thread
+    pthread_create(&merge_thread1, NULL, merge_thread, NULL);
+    pthread_join(merge_thread1, NULL);
+
+    // Print the final sorted array
+    printf("Sorted array: ");
+    for (int i = 0; i < SIZE; i++) {
+        printf("%d ", sorted_array[i]);
+    }
+    printf("\n");
+
+    return 0;
+}
