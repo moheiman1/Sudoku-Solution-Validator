@@ -1,0 +1,119 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+#define SIZE 9
+
+int sudoku[SIZE][SIZE] = {
+    {6, 2, 4, 5, 3, 9, 1, 8, 7},
+    {5, 1, 9, 7, 2, 8, 6, 3, 4},
+    {8, 3, 7, 6, 1, 4, 2, 9, 5},
+    {1, 4, 3, 8, 6, 5, 7, 2, 9},
+    {9, 5, 8, 2, 4, 7, 3, 6, 1},
+    {7, 6, 2, 3, 9, 1, 4, 5, 8},
+    {3, 7, 1, 9, 5, 6, 8, 4, 2},
+    {4, 9, 6, 1, 8, 2, 5, 7, 3},
+    {2, 8, 5, 4, 7, 3, 9, 1, 6}
+};
+
+int row_valid[SIZE] = {0};
+int col_valid[SIZE] = {0};
+int subgrid_valid[SIZE] = {0};
+
+typedef struct {
+    int index;
+} parameters;
+
+void* check_row(void* param) {
+    parameters* params = (parameters*)param;
+    int row = params->index;
+    int found[SIZE + 1] = {0};
+    for (int col = 0; col < SIZE; col++) {
+        int num = sudoku[row][col];
+        if (num < 1 || num > SIZE || found[num]++) {
+            row_valid[row] = 0;
+            pthread_exit(NULL);
+        }
+    }
+    row_valid[row] = 1;
+    pthread_exit(NULL);
+}
+
+void* check_col(void* param) {
+    parameters* params = (parameters*)param;
+    int col = params->index;
+    int found[SIZE + 1] = {0};
+    for (int row = 0; row < SIZE; row++) {
+        int num = sudoku[row][col];
+        if (num < 1 || num > SIZE || found[num]++) {
+            col_valid[col] = 0;
+            pthread_exit(NULL);
+        }
+    }
+    col_valid[col] = 1;
+    pthread_exit(NULL);
+}
+
+void* check_subgrid(void* param) {
+    parameters* params = (parameters*)param;
+    int subgrid = params->index;
+    int startRow = (subgrid / 3) * 3;
+    int startCol = (subgrid % 3) * 3;
+    int found[SIZE + 1] = {0};
+
+    for (int i = startRow; i < startRow + 3; i++) {
+        for (int j = startCol; j < startCol + 3; j++) {
+            int num = sudoku[i][j];
+            if (num < 1 || num > SIZE || found[num]++) {
+                subgrid_valid[subgrid] = 0;
+                pthread_exit(NULL);
+            }
+        }
+    }
+    subgrid_valid[subgrid] = 1;
+    pthread_exit(NULL);
+}
+
+int main() {
+    pthread_t threads[SIZE * 3];
+    parameters params[SIZE * 3];
+
+    // Create threads for rows
+    for (int i = 0; i < SIZE; i++) {
+        params[i].index = i;
+        pthread_create(&threads[i], NULL, check_row, &params[i]);
+    }
+
+    // Create threads for columns
+    for (int i = 0; i < SIZE; i++) {
+        params[SIZE + i].index = i;
+        pthread_create(&threads[SIZE + i], NULL, check_col, &params[SIZE + i]);
+    }
+
+    // Create threads for subgrids
+    for (int i = 0; i < SIZE; i++) {
+        params[2 * SIZE + i].index = i;
+        pthread_create(&threads[2 * SIZE + i], NULL, check_subgrid, &params[2 * SIZE + i]);
+    }
+
+    // Wait for all threads to finish
+    for (int i = 0; i < SIZE * 3; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    // Check results
+    int valid = 1;
+    for (int i = 0; i < SIZE; i++) {
+        if (!row_valid[i] || !col_valid[i] || !subgrid_valid[i]) {
+            valid = 0;
+            break;
+        }
+    }
+
+    if (valid) {
+        printf("Sudoku solution is valid.\n");
+    } else {
+        printf("Sudoku solution is invalid.\n");
+    }
+    return 0;
+}
